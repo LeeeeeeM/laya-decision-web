@@ -772,7 +772,7 @@ func (g *Game) DecisionCues() DecisionCues {
 	bulletNear := bulletDX >= BulletCrouchMin && bulletDX < BulletCrouchMax
 	pitNear := pitKind != "" && pitDX >= 0 && pitDX < 2.0
 	pitUrgent := pitNear && pitDX < 1.1 && (!bulletNear || pitDX < bulletDX)
-	enemyStomp := enemyDX >= EnemyStompMin && enemyDX <= EnemyStompArm
+	enemyStomp := enemyDX >= EnemyStompMin && enemyDX <= EnemyStompMax
 	enemyTooClose := enemyDX >= -0.2 && enemyDX < EnemyStompMin
 	enemyEngage := enemyDX >= -0.2 && enemyDX <= EnemyStompArm
 	boxReady := boxDX >= BoxBonkMin && boxDX <= BoxBonkMax

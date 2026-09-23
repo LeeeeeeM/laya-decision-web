@@ -29,7 +29,8 @@ const (
 	// Stomp cue window (center-to-center). The upper bound gives the agent
 	// enough decision ticks to react before reaching the enemy.
 	EnemyStompMin = 1.15
-	EnemyStompArm = 3.40
+	EnemyStompMax = 3.40
+	EnemyStompArm = EnemyStompMax
 
 	BulletW = 0.40 // compact core — avoid long "tail" kills after the projectile has passed
 	BulletH = 0.32
