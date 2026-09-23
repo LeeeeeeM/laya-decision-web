@@ -79,19 +79,24 @@ func (p *Policy) Decide(ctx context.Context, cues DecisionCues) (DecisionResult,
 		return DecisionResult{}, err
 	}
 
-	move, moveProbs := pickChoice(resp.Answers, "move", cues.Go)
+	proposedMove, moveProbs := pickChoice(resp.Answers, "move", cues.Go)
+	executedMove := proposedMove
 	proposedAction, actionProbs := pickChoice(resp.Answers, "action", cues.Need)
 	executedAction := proposedAction
 	intervened := false
+	if cues.LockMoveToGo && cues.Go != "" && proposedMove != cues.Go {
+		executedMove = cues.Go
+		intervened = true
+	}
 	if cues.Need != "" && cues.Need != "NONE" && proposedAction != cues.Need {
 		executedAction = cues.Need
 		intervened = true
 	}
-	proposed := move + "+" + proposedAction
-	executed := move + "+" + executedAction
+	proposed := proposedMove + "+" + proposedAction
+	executed := executedMove + "+" + executedAction
 
 	return DecisionResult{
-		Move: move, Action: executedAction, ProbMove: moveProbs, ProbAction: actionProbs,
+		Move: executedMove, Action: executedAction, ProbMove: moveProbs, ProbAction: actionProbs,
 		Proposed: proposed, Executed: executed, Intervened: intervened,
 		InferenceMS: inferMS, DecisionMS: float64(time.Since(start).Microseconds()) / 1000,
 		Provider: resp.Provider, Model: resp.Model,

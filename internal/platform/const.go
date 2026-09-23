@@ -55,11 +55,12 @@ const (
 
 	// Ground pickup items (drawn as a key): crouch-overlap to collect.
 	// Standing walk-over ignores them — forces an explicit CROUCH decision.
-	ItemW      = 0.70
-	ItemH      = 0.70
-	ItemScore  = 40
-	ItemEatMin = 0.0
-	ItemEatMax = 2.00 // start the CROUCH cue before reaching the pickup
+	ItemW           = 0.70
+	ItemH           = 0.70
+	ItemScore       = 40
+	ItemEatMin      = -0.5 // keep the pickup cue active until the key leaves the tracked overlap range
+	ItemEatMax      = 2.00 // start the CROUCH cue before reaching the pickup
+	ItemApproachMax = 6.0  // strategy approach horizon; matches the visible hazard summary range
 
 	CameraLead = 0.40
 )

@@ -19,27 +19,23 @@ func TestJumpClearsOneTilePit(t *testing.T) {
 	t.Fatalf("did not clear pit, x=%.2f grounded=%v", g.PlayerX, g.Grounded)
 }
 
-func TestJumpUsesFacingWhenIdle(t *testing.T) {
-	g := blankGame()
-	g.PlayerX = 10
-	g.SetIntent(MoveLeft, ActionNone)
-	g.Step()
-	if g.Facing != -1 {
-		t.Fatalf("expected face left, got %d", g.Facing)
-	}
-	g.SetIntent(MoveIdle, ActionJump)
-	g.Step()
-	if g.VX >= 0 {
-		t.Fatalf("idle jump should keep facing left, vx=%.2f facing=%d", g.VX, g.Facing)
-	}
-	g.SetIntent(MoveRight, ActionNone)
-	for i := 0; i < 30; i++ {
+func TestIdleJumpIsVerticalRegardlessOfFacing(t *testing.T) {
+	for _, facing := range []int{-1, 1} {
+		g := blankGame()
+		g.PlayerX = 10
+		g.Facing = facing
+		startX := g.PlayerX
+		g.SetIntent(MoveIdle, ActionJump)
 		g.Step()
-	}
-	g.SetIntent(MoveIdle, ActionJump)
-	g.Step()
-	if g.VX <= 0 {
-		t.Fatalf("idle jump should face right, vx=%.2f facing=%d", g.VX, g.Facing)
+		if g.VX != 0 {
+			t.Fatalf("idle jump should have no horizontal velocity, vx=%.2f facing=%d", g.VX, g.Facing)
+		}
+		if g.PlayerX != startX {
+			t.Fatalf("idle jump should not change horizontal position, before=%.2f after=%.2f", startX, g.PlayerX)
+		}
+		if g.Facing != facing {
+			t.Fatalf("idle jump should preserve facing, before=%d after=%d", facing, g.Facing)
+		}
 	}
 }
 

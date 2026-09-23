@@ -248,15 +248,19 @@ func (g *Game) updateFacing(move MoveIntent) {
 	}
 }
 
-// takeoff jumps in the current facing direction (LEFT/RIGHT already updated Facing).
+// takeoff follows the current horizontal intent: directional jumps carry horizontally,
+// while an IDLE jump is vertical regardless of the last facing direction.
 func (g *Game) takeoff(vy float64) {
 	g.VY = vy
 	g.Grounded = false
 	g.intent.Action = ActionNone
-	if g.Facing < 0 {
+	switch g.intent.Move {
+	case MoveLeft:
 		g.VX = -MoveSpeed
-	} else {
+	case MoveRight:
 		g.VX = MoveSpeed
+	default:
+		g.VX = 0
 	}
 }
 
@@ -706,9 +710,10 @@ func (g *Game) HazardSummary() string {
 // DecisionCues is the typed platform judgment (when to walk/jump/crouch).
 // Far pits/enemies/bullets are intentionally ignored: they must not freeze the runner.
 type DecisionCues struct {
-	Need string // NONE | JUMP | CROUCH
-	Go   string // RIGHT | LEFT
-	Text string
+	Need         string // NONE | JUMP | CROUCH
+	Go           string // RIGHT | LEFT
+	LockMoveToGo bool   // keep moving toward a visible key unless an immediate threat takes priority
+	Text         string
 }
 
 func (g *Game) DecisionCues() DecisionCues {
@@ -776,8 +781,11 @@ func (g *Game) DecisionCues() DecisionCues {
 	enemyTooClose := enemyDX >= -0.2 && enemyDX < EnemyStompMin
 	enemyEngage := enemyDX >= -0.2 && enemyDX <= EnemyStompArm
 	boxReady := boxDX >= BoxBonkMin && boxDX <= BoxBonkMax
+	itemTarget := !bulletNear && !enemyEngage && itemDX >= ItemEatMin && itemDX <= ItemApproachMax
+	itemReady := itemTarget && itemDX <= ItemEatMax
 
 	need := "NONE"
+	lockMoveToGo := itemTarget
 	switch {
 	case !g.Grounded:
 		need = "NONE"
@@ -785,7 +793,7 @@ func (g *Game) DecisionCues() DecisionCues {
 		need = "CROUCH"
 	case pitNear || enemyStomp || (boxReady && !bulletNear && !enemyTooClose):
 		need = "JUMP"
-	case !bulletNear && !enemyEngage && itemDX >= ItemEatMin && itemDX <= ItemEatMax:
+	case itemReady:
 		need = "CROUCH"
 	}
 	goDir := "RIGHT"
@@ -808,9 +816,10 @@ func (g *Game) DecisionCues() DecisionCues {
 		listed++
 	}
 	return DecisionCues{
-		Need: need,
-		Go:   goDir,
-		Text: fmt.Sprintf("%s x=%.1f", joinSpace(parts), g.PlayerX-g.CameraX),
+		Need:         need,
+		Go:           goDir,
+		LockMoveToGo: lockMoveToGo,
+		Text:         fmt.Sprintf("%s x=%.1f", joinSpace(parts), g.PlayerX-g.CameraX),
 	}
 }
 
