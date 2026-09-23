@@ -65,25 +65,19 @@ func main() {
 }
 
 func loadLaya(cfg config.Config) decision.Provider {
-	dir := strings.TrimSpace(cfg.LayaModelDir)
-	if dir == "" {
-		dir = strings.TrimSpace(cfg.LayaModelID)
-	}
-	if dir == "" {
-		for _, candidate := range []string{"models/snake", "../laya-coreml/models/snake"} {
-			if st, err := os.Stat(candidate); err == nil && st.IsDir() {
-				dir = candidate
-				break
-			}
-		}
-	}
-	if dir == "" {
-		return &unavailableProvider{name: decision.ProviderLaya, reason: "no local Laya model directory configured"}
-	}
-	if !filepath.IsAbs(dir) {
-		if abs, err := filepath.Abs(dir); err == nil {
-			dir = abs
-		}
+	ctx := context.Background()
+	dir, err := laya.ResolveBundle(ctx, laya.HubResolveOptions{
+		ModelDir:   cfg.LayaModelDir,
+		ModelID:    firstNonEmpty(cfg.LayaModelID, laya.DefaultHubRepo()),
+		Revision:   cfg.LayaModelRev,
+		CacheDir:   cfg.LayaModelCache,
+		HFToken:    cfg.HFToken,
+		HTTPClient: laya.DefaultHubHTTPClient(),
+		Logf:       log.Printf,
+	})
+	if err != nil {
+		log.Printf("laya resolve failed: %v", err)
+		return &unavailableProvider{name: decision.ProviderLaya, reason: err.Error()}
 	}
 	p, err := laya.Open(laya.Options{
 		ModelDir:     dir,
