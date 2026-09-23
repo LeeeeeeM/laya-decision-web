@@ -15,19 +15,21 @@ import (
 	"github.com/LeeeeeeM/laya-decision-web/internal/config"
 	"github.com/LeeeeeeM/laya-decision-web/internal/decision"
 	"github.com/LeeeeeeM/laya-decision-web/internal/decision/jev"
+	"github.com/LeeeeeeM/laya-decision-web/internal/platform"
 	"github.com/LeeeeeeM/laya-decision-web/internal/session"
 )
 
 const maxBody = 256 << 10
 
 type Server struct {
-	Cfg     config.Config
-	Manager *session.Manager
-	Mux     *http.ServeMux
+	Cfg      config.Config
+	Manager  *session.Manager
+	Platform *platform.Manager
+	Mux      *http.ServeMux
 }
 
-func New(cfg config.Config, mgr *session.Manager) *Server {
-	s := &Server{Cfg: cfg, Manager: mgr, Mux: http.NewServeMux()}
+func New(cfg config.Config, mgr *session.Manager, plat *platform.Manager) *Server {
+	s := &Server{Cfg: cfg, Manager: mgr, Platform: plat, Mux: http.NewServeMux()}
 	s.routes()
 	return s
 }
@@ -44,6 +46,11 @@ func (s *Server) routes() {
 	s.Mux.HandleFunc("GET /api/v1/sessions/{id}/events", s.handleEvents)
 	s.Mux.HandleFunc("POST /api/v1/sessions/{id}/controls", s.handleControls)
 	s.Mux.HandleFunc("DELETE /api/v1/sessions/{id}", s.handleDeleteSession)
+
+	s.Mux.HandleFunc("POST /api/v1/platform/sessions", s.handlePlatformCreate)
+	s.Mux.HandleFunc("GET /api/v1/platform/sessions/{id}/events", s.handlePlatformEvents)
+	s.Mux.HandleFunc("POST /api/v1/platform/sessions/{id}/controls", s.handlePlatformControls)
+	s.Mux.HandleFunc("DELETE /api/v1/platform/sessions/{id}", s.handlePlatformDelete)
 
 	if info, err := os.Stat(s.Cfg.StaticDir); err == nil && info.IsDir() {
 		fileServer := http.FileServer(http.Dir(s.Cfg.StaticDir))
@@ -66,61 +73,18 @@ func (s *Server) routes() {
 
 func (s *Server) withMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodOptions {
-			if !s.allowOrigin(w, r) {
-				writeError(w, http.StatusForbidden, "invalid_request", "origin not allowed", 0)
-				return
-			}
-		} else {
-			s.writeCORS(w, r)
+		s.writeCORS(w)
+		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		s.writeCORS(w, r)
 		r.Body = http.MaxBytesReader(w, r.Body, maxBody)
 		next.ServeHTTP(w, r)
 	})
 }
 
-func (s *Server) originAllowed(origin string) bool {
-	if origin == "" {
-		return true
-	}
-	for _, allowed := range s.Cfg.CORSOrigins {
-		if origin == allowed {
-			return true
-		}
-	}
-	// Allow same-host loopback pages served by this process (LISTEN_ADDR).
-	if strings.HasPrefix(origin, "http://127.0.0.1:") || strings.HasPrefix(origin, "http://localhost:") {
-		host := strings.TrimPrefix(strings.TrimPrefix(origin, "http://"), "localhost")
-		host = strings.TrimPrefix(host, "127.0.0.1")
-		listen := s.Cfg.ListenAddr
-		if strings.HasPrefix(listen, "127.0.0.1") || strings.HasPrefix(listen, "localhost") || strings.HasPrefix(listen, ":") {
-			listenHost := listen
-			if i := strings.LastIndex(listen, ":"); i >= 0 {
-				listenHost = listen[i:]
-			}
-			if host == listenHost {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (s *Server) allowOrigin(w http.ResponseWriter, r *http.Request) bool {
-	_ = w
-	return s.originAllowed(r.Header.Get("Origin"))
-}
-
-func (s *Server) writeCORS(w http.ResponseWriter, r *http.Request) {
-	origin := r.Header.Get("Origin")
-	if !s.originAllowed(origin) || origin == "" {
-		return
-	}
-	w.Header().Set("Access-Control-Allow-Origin", origin)
-	w.Header().Set("Vary", "Origin")
+func (s *Server) writeCORS(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Last-Event-ID")
 }

@@ -36,7 +36,6 @@ type CreateRequest struct {
 	Seed     int64   `json:"seed"`
 	Width    int     `json:"width"`
 	Height   int     `json:"height"`
-	Guarded  *bool   `json:"guarded"`
 	Prompt   string  `json:"prompt"`
 }
 
@@ -52,7 +51,6 @@ type SnapshotPayload struct {
 	Provider  string         `json:"provider"`
 	Model     string         `json:"model"`
 	FPS       float64        `json:"fps"`
-	Guarded   bool           `json:"guarded"`
 	Prompt    string         `json:"prompt"`
 	Game      snake.Snapshot `json:"game"`
 }
@@ -66,7 +64,6 @@ type Session struct {
 	Provider decision.Provider
 	Model    string
 	FPS      float64
-	Guarded  bool
 	Prompt   string
 	MaxFPS   float64
 
@@ -174,10 +171,6 @@ func (m *Manager) Create(req CreateRequest) (*Session, error) {
 	if prompt != "compact" && prompt != "detailed" {
 		return nil, fmt.Errorf("prompt must be compact or detailed")
 	}
-	guarded := true
-	if req.Guarded != nil {
-		guarded = *req.Guarded
-	}
 	game, err := snake.NewGame(width, height, seed, 6)
 	if err != nil {
 		return nil, err
@@ -195,7 +188,6 @@ func (m *Manager) Create(req CreateRequest) (*Session, error) {
 		Provider: provider,
 		Model:    model,
 		FPS:      fps,
-		Guarded:  guarded,
 		Prompt:   prompt,
 		MaxFPS:   m.maxJevFPS,
 		game:     game,
@@ -254,7 +246,6 @@ func (s *Session) snapshotLocked() SnapshotPayload {
 		Provider:  s.Provider.Name(),
 		Model:     model,
 		FPS:       s.FPS,
-		Guarded:   s.Guarded,
 		Prompt:    s.Prompt,
 		Game:      s.game.Snapshot(),
 	}
@@ -473,7 +464,7 @@ func (s *Session) stepOnce(ctx context.Context) error {
 		return nil
 	}
 	game := s.game
-	policy := &snake.Policy{Provider: s.Provider, Guarded: s.Guarded, Prompt: s.Prompt}
+	policy := &snake.Policy{Provider: s.Provider, Prompt: s.Prompt}
 	s.mu.Unlock()
 
 	decisionResult, err := policy.Decide(ctx, game)

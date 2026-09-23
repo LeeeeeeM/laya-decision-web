@@ -12,7 +12,6 @@ const Version = "0.1.0"
 
 type Config struct {
 	ListenAddr      string
-	CORSOrigins     []string
 	StaticDir       string
 	BochaJevAPIKey  string
 	BochaJevTimeout time.Duration
@@ -28,7 +27,7 @@ type Config struct {
 
 func Load() (Config, error) {
 	cfg := Config{
-		ListenAddr:      envOr("LISTEN_ADDR", "127.0.0.1:8080"),
+		ListenAddr:      envOr("LISTEN_ADDR", "127.0.0.1:18080"),
 		StaticDir:       envOr("STATIC_DIR", "frontend/dist"),
 		BochaJevAPIKey:  firstNonEmpty(os.Getenv("BOCHA_JEV_API_KEY"), os.Getenv("BOCHA_SEARCH_API_KEY")),
 		BochaJevTimeout: 15 * time.Second,
@@ -40,14 +39,6 @@ func Load() (Config, error) {
 		LayaModelRev:    os.Getenv("LAYA_MODEL_REVISION"),
 		HFToken:         os.Getenv("HF_TOKEN"),
 		AllowMock:       envBool("ALLOW_MOCK_PROVIDER", true),
-	}
-
-	origins := envOr("CORS_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173")
-	for _, o := range strings.Split(origins, ",") {
-		o = strings.TrimSpace(o)
-		if o != "" {
-			cfg.CORSOrigins = append(cfg.CORSOrigins, o)
-		}
 	}
 
 	if v := os.Getenv("BOCHA_JEV_TIMEOUT"); v != "" {

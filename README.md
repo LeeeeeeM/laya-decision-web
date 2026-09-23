@@ -1,8 +1,12 @@
 # Laya Decision Web
 
-本机浏览器演示：通过统一决策接口切换 **laya / mock / Bocha Jev**，用 Snake 展示候选动作概率、延迟与安全层。
+本机浏览器演示：通过统一决策接口切换 **laya / mock / Bocha Jev**，用 **Snake** 与 **横卷游戏判定** 展示候选动作概率与延迟。
 
 ![Laya Snake 演示：provider=laya，方向概率与约 40ms 延迟](docs/assets/snake-laya-demo.png)
+
+横卷游戏判定演示（agent 模式）：
+
+[播放横卷游戏判定演示（platform-demo.mov）](docs/assets/platform-demo.mov)
 
 设计文档见 [`docs/`](docs/)。
 
@@ -15,21 +19,24 @@
 - `third_party/tokenizers/libtokenizers.a`（缺省时执行 `make deps`；如需代理可设置 `HTTPS_PROXY`）
 
 ```bash
-# 终端 1：Go API（默认 models/snake）
-make run
-# 或：./scripts/run-server.sh
+# 配置（首次）
+cp .env.example .env
 
-# 终端 2：前端开发服务器
+# 终端 1：后端（Air 热重载，读 .env，默认 http://127.0.0.1:18080）
+./scripts/start_dev.sh
+# 或：make dev
+
+# 终端 2：前端（Vite，默认 http://127.0.0.1:5173）
 make frontend
+# 或：cd frontend && npm install && npm run dev
 ```
 
-打开 http://127.0.0.1:5173 。默认优先选择可用的 **laya**；也可切到 mock / bocha-jev。
+打开 http://127.0.0.1:5173 。Vite 会把 `/api` 代理到后端 18080。默认优先选择可用的 **laya**；也可切到 mock / bocha-jev。
 
-本地模型目录为 `models/snake`（也可从 [laya-coreml](https://github.com/LeeeeeeM/laya-coreml) 的同名目录复制）。若目录不完整，启动时会按 `LAYA_MODEL_ID` **阻塞下载** Hugging Face 快照到 `LAYA_MODEL_DIR`（默认 `models/snake`），完成后再监听端口。可选 `HF_TOKEN`（私有仓库）、`LAYA_MODEL_REVISION`、`HTTPS_PROXY`。
+无热重载的一次性启动：`make run` 或 `./scripts/run-server.sh`。
+本地模型目录为 `models/snake`。若目录不完整，启动时会按 `LAYA_MODEL_ID` **阻塞下载** Hugging Face 快照到 `LAYA_MODEL_DIR`（默认 `models/snake`），完成后再监听端口。可选 `HF_TOKEN`（私有仓库）、`LAYA_MODEL_REVISION`、`HTTPS_PROXY`。
 
 首次 Core ML 编译会生成 `models/snake/model.mlmodelc` 缓存。
-
-配置示例：`cp .env.example .env`
 
 生产式单入口（API + 静态前端）：
 
@@ -50,8 +57,9 @@ make test-short    # 跳过 Core ML 加载
 
 ## 能力概览
 
-- Go HTTP API、SSE 会话、Snake 引擎与安全层
+- Go HTTP API、SSE 会话、Snake 与横卷游戏判定引擎
 - Provider：本地 Laya（Core ML ANE）、mock、Bocha Jev
 - Vite + Canvas 控制台；模型缺失时自动从 Hugging Face 拉取
+- 决策原样执行（无安全层改写）
 
-移植自 [laya-coreml](https://github.com/LeeeeeeM/laya-coreml)；Apache-2.0，见 `LICENSE` / `NOTICE`。
+Apache-2.0，见 `LICENSE` / `NOTICE`。

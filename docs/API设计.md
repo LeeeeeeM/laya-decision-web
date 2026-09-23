@@ -1,6 +1,6 @@
 # HTTP API 设计
 
-本地 Go 服务默认监听 127.0.0.1:8080。API 使用 UTF-8 JSON；Snake 状态通过 Server-Sent Events 推送。浏览器不直接访问 Core ML、Hugging Face 或 Bocha Jev。
+本地 Go 服务默认监听 127.0.0.1:18080。API 使用 UTF-8 JSON；Snake 状态通过 Server-Sent Events 推送。浏览器不直接访问 Core ML、Hugging Face 或 Bocha Jev。
 
 ## 1. Provider 标识
 
@@ -144,7 +144,6 @@ Laya 本地模型示例：
   "seed": 7,
   "width": 24,
   "height": 16,
-  "guarded": true,
   "prompt": "compact"
 }
 ~~~

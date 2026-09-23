@@ -31,7 +31,6 @@ type DecisionResult struct {
 
 type Policy struct {
 	Provider decision.Provider
-	Guarded  bool
 	Prompt   string // compact | detailed
 }
 
@@ -43,9 +42,6 @@ func (p *Policy) Decide(ctx context.Context, game *Game) (DecisionResult, error)
 		if m.Safe {
 			safe = append(safe, m)
 		}
-	}
-	if p.Guarded && len(safe) == 0 {
-		return DecisionResult{}, fmt.Errorf("cycle safety invariant violated: no safe action")
 	}
 	preferred := "NONE"
 	if len(safe) > 0 {
@@ -85,25 +81,14 @@ func (p *Policy) Decide(ctx context.Context, game *Game) (DecisionResult, error)
 	for _, m := range safe {
 		allowed = append(allowed, m.Direction)
 	}
+	// No safety rewrite: execute the model choice as proposed.
 	executed := proposed
-	if p.Guarded {
-		found := false
-		for _, d := range allowed {
-			if d == proposed {
-				found = true
-				break
-			}
-		}
-		if !found && len(allowed) > 0 {
-			executed = maxKey(probs, allowed)
-		}
-	}
 	return DecisionResult{
 		Probabilities:  probs,
 		Proposed:       proposed,
 		Executed:       executed,
 		SafeDirections: allowed,
-		Intervened:     proposed != executed,
+		Intervened:     false,
 		DeadEndRisk:    1 - risk,
 		FoodReachable:  food,
 		InferenceMS:    inferenceMS,

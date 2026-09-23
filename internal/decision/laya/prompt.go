@@ -215,6 +215,7 @@ func buildSequence(tok *Tokenizer, state string, q internalQuestion, labels []st
 	room := max(0, maxLen-len(ids)-1)
 	st := tok.Encode(strings.ReplaceAll(state, tok.MASK, " "), false)
 	if len(st) > room {
+		// Keep the head: platform HazardSummary puts need= first for L96.
 		st = st[:room]
 	}
 	ids = append(ids, st...)

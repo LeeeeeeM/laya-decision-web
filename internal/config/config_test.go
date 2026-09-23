@@ -18,7 +18,7 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ListenAddr != "127.0.0.1:8080" {
+	if cfg.ListenAddr != "127.0.0.1:18080" {
 		t.Fatalf("listen=%s", cfg.ListenAddr)
 	}
 	if cfg.LayaModelDir != "models/snake" {

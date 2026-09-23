@@ -1,0 +1,58 @@
+{
+  "tile_px": 32,
+  "license": "Original pixel art generated for laya-decision-web. Free to use with the project (treat as CC0).",
+  "note": "Not Nintendo / Super Mario assets. Replace with Kenney CC0 packs if desired.",
+  "player": {
+    "idle": "player_idle.png",
+    "walk": [
+      "player_walk_1.png",
+      "player_walk_2.png"
+    ],
+    "jump": "player_jump.png",
+    "crouch": "player_crouch.png",
+    "frame_px": [
+      32,
+      64
+    ]
+  },
+  "enemy": {
+    "idle": "enemy.png",
+    "frame_px": [
+      32,
+      32
+    ]
+  },
+  "bullet": {
+    "idle": "bullet.png",
+    "frame_px": [
+      24,
+      13
+    ]
+  },
+  "box": {
+    "idle": "box.png",
+    "hit": "box_hit.png",
+    "frame_px": [
+      32,
+      32
+    ]
+  },
+  "item": {
+    "idle": "item_key.png",
+    "kind": "key",
+    "frame_px": [
+      32,
+      32
+    ]
+  },
+  "tiles": {
+    "ground": "tile_ground.png",
+    "brick": "tile_brick.png",
+    "water": "tile_water.png"
+  },
+  "kenney_alternatives": [
+    "https://kenney.nl/assets/platformer-characters",
+    "https://kenney.nl/assets/new-platformer-pack",
+    "https://kenney.nl/assets/pixel-platformer"
+  ]
+}

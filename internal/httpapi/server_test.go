@@ -17,14 +17,13 @@ import (
 func newTestServer(t *testing.T) *httpapi.Server {
 	t.Helper()
 	cfg := config.Config{
-		ListenAddr:  "127.0.0.1:0",
-		CORSOrigins: []string{"http://127.0.0.1:5173"},
-		AllowMock:   true,
+		ListenAddr: "127.0.0.1:0",
+		AllowMock:  true,
 	}
 	mgr := session.NewManager(map[string]decision.Provider{
 		decision.ProviderMock: mockprovider.New(),
 	}, 2)
-	return httpapi.New(cfg, mgr)
+	return httpapi.New(cfg, mgr, nil)
 }
 
 func TestHealthAndCapabilities(t *testing.T) {
@@ -83,7 +82,6 @@ func TestCreateSessionAndControl(t *testing.T) {
 		"provider": "mock",
 		"fps":      30,
 		"seed":     7,
-		"guarded":  true,
 	})
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/sessions", bytes.NewReader(raw))
@@ -116,13 +114,16 @@ func TestCreateSessionAndControl(t *testing.T) {
 	}
 }
 
-func TestCORSRejectsUnknownOrigin(t *testing.T) {
+func TestCORSAllowsAnyOrigin(t *testing.T) {
 	srv := newTestServer(t)
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
-	req.Header.Set("Origin", "http://evil.example")
+	req.Header.Set("Origin", "http://192.168.46.243:5173")
 	srv.Handler().ServeHTTP(rr, req)
-	if rr.Code != http.StatusForbidden {
+	if rr.Code != http.StatusOK {
 		t.Fatalf("code=%d", rr.Code)
+	}
+	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("allow-origin=%q", got)
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/LeeeeeeM/laya-decision-web/internal/decision/laya"
 	"github.com/LeeeeeeM/laya-decision-web/internal/decision/mockprovider"
 	"github.com/LeeeeeeM/laya-decision-web/internal/httpapi"
+	"github.com/LeeeeeeM/laya-decision-web/internal/platform"
 	"github.com/LeeeeeeM/laya-decision-web/internal/session"
 )
 
@@ -42,7 +43,8 @@ func main() {
 	}
 
 	mgr := session.NewManager(providers, cfg.BochaJevMaxFPS)
-	srv := httpapi.New(cfg, mgr)
+	plat := platform.NewManager(providers, cfg.BochaJevMaxFPS)
+	srv := httpapi.New(cfg, mgr, plat)
 
 	log.Printf("laya-decision-web %s listening on http://%s", config.Version, cfg.ListenAddr)
 	if jevClient.Available() {

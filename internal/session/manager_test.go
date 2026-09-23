@@ -14,14 +14,12 @@ func TestSessionCreatePauseResumeResetStop(t *testing.T) {
 		decision.ProviderMock: mockprovider.New(),
 	}, 2)
 	fps := 20.0
-	guarded := true
 	s, err := mgr.Create(session.CreateRequest{
 		Provider: decision.ProviderMock,
 		FPS:      fps,
 		Seed:     7,
 		Width:    24,
 		Height:   16,
-		Guarded:  &guarded,
 		Prompt:   "compact",
 	})
 	if err != nil {

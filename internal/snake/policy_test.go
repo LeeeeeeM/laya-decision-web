@@ -128,7 +128,7 @@ func TestSnapshotShape(t *testing.T) {
 	}
 }
 
-func TestPolicyGuardedIntervention(t *testing.T) {
+func TestPolicyNoSafetyRewrite(t *testing.T) {
 	g, err := snake.NewGame(24, 16, 7, 6)
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +137,7 @@ func TestPolicyGuardedIntervention(t *testing.T) {
 	if unsafe == "" {
 		t.Fatal("expected a non-safe direction")
 	}
-	p := &snake.Policy{Provider: &forcedProvider{dir: unsafe}, Guarded: true, Prompt: "compact"}
+	p := &snake.Policy{Provider: &forcedProvider{dir: unsafe}, Prompt: "compact"}
 	dec, err := p.Decide(context.Background(), g)
 	if err != nil {
 		t.Fatal(err)
@@ -145,17 +145,8 @@ func TestPolicyGuardedIntervention(t *testing.T) {
 	if dec.Proposed != unsafe {
 		t.Fatalf("proposed=%s want %s", dec.Proposed, unsafe)
 	}
-	if !dec.Intervened {
-		t.Fatal("expected safety intervention")
-	}
-	found := false
-	for _, d := range dec.SafeDirections {
-		if d == dec.Executed {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("executed %s not in safe %v", dec.Executed, dec.SafeDirections)
+	if dec.Executed != unsafe || dec.Intervened {
+		t.Fatalf("safety rewrite must be off: executed=%s intervened=%v", dec.Executed, dec.Intervened)
 	}
 }
 
@@ -164,7 +155,7 @@ func TestPolicyWithMockProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := &snake.Policy{Provider: mockprovider.New(), Guarded: true, Prompt: "compact"}
+	p := &snake.Policy{Provider: mockprovider.New(), Prompt: "compact"}
 	dec, err := p.Decide(context.Background(), g)
 	if err != nil {
 		t.Fatal(err)
@@ -185,7 +176,7 @@ func TestCriteriaJSONPreservesDirectionOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	cap := &captureProvider{}
-	p := &snake.Policy{Provider: cap, Guarded: true, Prompt: "compact"}
+	p := &snake.Policy{Provider: cap, Prompt: "compact"}
 	if _, err := p.Decide(context.Background(), g); err != nil {
 		t.Fatal(err)
 	}

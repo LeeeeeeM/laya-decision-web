@@ -1,4 +1,4 @@
-.PHONY: build run frontend test tidy deps
+.PHONY: build run dev frontend test tidy deps
 
 export CGO_ENABLED=1
 export GOTOOLCHAIN=local
@@ -10,6 +10,10 @@ build:
 
 run: build
 	./bin/laya-decision-web
+
+# Air 热重载（加载 .env，默认监听 18080）
+dev:
+	./scripts/start_dev.sh
 
 frontend:
 	cd frontend && npm install && npm run dev
