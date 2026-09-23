@@ -1,4 +1,5 @@
 import type { PlatformGame } from "./api";
+import { drawScoreHUD } from "./canvasHud";
 
 type Atlas = {
   playerIdle: HTMLImageElement;
@@ -96,6 +97,7 @@ export function drawPlatform(canvas: HTMLCanvasElement, g: PlatformGame | null):
     ctx.fillStyle = "#1a2332";
     ctx.font = "16px Sora, sans-serif";
     ctx.fillText("横卷游戏判定 — 按开始", 24, 40);
+    drawScoreHUD(ctx, w, 0);
     return;
   }
 
@@ -251,4 +253,6 @@ export function drawPlatform(canvas: HTMLCanvasElement, g: PlatformGame | null):
     ctx.font = "14px IBM Plex Mono, monospace";
     ctx.fillText(`score ${g.score} · distance ${g.distance}`, 24, 76);
   }
+
+  drawScoreHUD(ctx, w, g.score);
 }

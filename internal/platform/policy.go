@@ -32,14 +32,21 @@ type Policy struct {
 func (p *Policy) Decide(ctx context.Context, cues DecisionCues) (DecisionResult, error) {
 	start := time.Now()
 
-	// Full choice sets; cue-matching option listed first with "Best" (Snake-style).
-	moveOrder := preferFirst(cues.Go, []string{"RIGHT", "LEFT"})
+	// Agent movement is forward-only: it may move right or hold position, never left.
+	moveOptions := []string{string(MoveRight), string(MoveIdle)}
+	moveTarget := cues.Go
+	if !containsChoice(moveOptions, moveTarget) {
+		moveTarget = string(MoveRight)
+	}
+	moveOrder := preferFirst(moveTarget, moveOptions)
 	moveValues := map[string]string{}
 	for _, m := range moveOrder {
-		if m == cues.Go {
-			moveValues[m] = "Best. Matches go=" + cues.Go + "."
+		if m == moveTarget {
+			moveValues[m] = "Best. Matches go=" + moveTarget + "."
+		} else if m == string(MoveIdle) {
+			moveValues[m] = "Allowed for a brief wait or to pair with JUMP for a vertical jump; do not idle without a reason."
 		} else {
-			moveValues[m] = "Worse."
+			moveValues[m] = "Continue forward when safe; backward movement is not allowed."
 		}
 	}
 	actionOrder := preferFirst(cues.Need, []string{"NONE", "JUMP", "CROUCH"})
@@ -79,13 +86,17 @@ func (p *Policy) Decide(ctx context.Context, cues DecisionCues) (DecisionResult,
 		return DecisionResult{}, err
 	}
 
-	proposedMove, moveProbs := pickChoice(resp.Answers, "move", cues.Go)
+	proposedMove, moveProbs := pickChoice(resp.Answers, "move", moveTarget)
 	executedMove := proposedMove
 	proposedAction, actionProbs := pickChoice(resp.Answers, "action", cues.Need)
 	executedAction := proposedAction
 	intervened := false
-	if cues.LockMoveToGo && cues.Go != "" && proposedMove != cues.Go {
-		executedMove = cues.Go
+	if !containsChoice(moveOptions, executedMove) {
+		executedMove = moveTarget
+		intervened = true
+	}
+	if cues.LockMoveToGo && executedMove != moveTarget {
+		executedMove = moveTarget
 		intervened = true
 	}
 	if cues.Need != "" && cues.Need != "NONE" && proposedAction != cues.Need {
@@ -101,6 +112,15 @@ func (p *Policy) Decide(ctx context.Context, cues DecisionCues) (DecisionResult,
 		InferenceMS: inferMS, DecisionMS: float64(time.Since(start).Microseconds()) / 1000,
 		Provider: resp.Provider, Model: resp.Model,
 	}, nil
+}
+
+func containsChoice(options []string, choice string) bool {
+	for _, option := range options {
+		if choice == option {
+			return true
+		}
+	}
+	return false
 }
 
 func preferFirst(first string, all []string) []string {

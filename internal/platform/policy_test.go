@@ -52,15 +52,15 @@ func TestHazardSummaryHidesFarEnemyAndBullet(t *testing.T) {
 	}
 }
 
-func TestHazardSummaryGoLeftWhenEnemyGlued(t *testing.T) {
+func TestHazardSummaryStopsAndJumpsWhenEnemyTooClose(t *testing.T) {
 	g := blankGame()
 	g.PlayerX = 10
 	g.CameraX = 0
 	g.Grounded = true
 	g.enemies = []Enemy{{X: 10 + 0.5, Y: GroundY, Alive: true}}
 	s := g.HazardSummary()
-	if !strings.Contains(s, "go=LEFT") {
-		t.Fatalf("glued enemy must set go=LEFT: %q", s)
+	if !strings.Contains(s, "go=IDLE") || !strings.Contains(s, "need=JUMP") {
+		t.Fatalf("close enemy must cue an idle jump, got: %q", s)
 	}
 }
 

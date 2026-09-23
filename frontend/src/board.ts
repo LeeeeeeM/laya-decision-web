@@ -1,4 +1,5 @@
 import type { DecisionEvent, GameSnapshot } from "./api";
+import { drawScoreHUD } from "./canvasHud";
 
 const DIRS = ["UP", "DOWN", "LEFT", "RIGHT"] as const;
 
@@ -35,7 +36,10 @@ export function drawBoard(
     ctx.stroke();
   }
 
-  if (!game) return;
+  if (!game) {
+    drawScoreHUD(ctx, canvas.width, 0);
+    return;
+  }
 
   if (game.food) {
     const [fx, fy] = game.food;
@@ -60,6 +64,7 @@ export function drawBoard(
     ctx.stroke();
   }
 
+  drawScoreHUD(ctx, canvas.width, game.score);
   void DIRS;
 }
 

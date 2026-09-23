@@ -61,6 +61,7 @@ const (
 	ItemEatMin      = -0.5 // keep the pickup cue active until the key leaves the tracked overlap range
 	ItemEatMax      = 2.00 // start the CROUCH cue before reaching the pickup
 	ItemApproachMax = 6.0  // strategy approach horizon; matches the visible hazard summary range
+	ItemStopMax     = 0.60 // stop inside the key's horizontal overlap range
 
 	CameraLead = 0.40
 )

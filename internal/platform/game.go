@@ -711,8 +711,8 @@ func (g *Game) HazardSummary() string {
 // Far pits/enemies/bullets are intentionally ignored: they must not freeze the runner.
 type DecisionCues struct {
 	Need         string // NONE | JUMP | CROUCH
-	Go           string // RIGHT | LEFT
-	LockMoveToGo bool   // keep moving toward a visible key unless an immediate threat takes priority
+	Go           string // RIGHT | IDLE
+	LockMoveToGo bool   // enforce the safe strategy direction (forward or idle)
 	Text         string
 }
 
@@ -783,23 +783,24 @@ func (g *Game) DecisionCues() DecisionCues {
 	boxReady := boxDX >= BoxBonkMin && boxDX <= BoxBonkMax
 	itemTarget := !bulletNear && !enemyEngage && itemDX >= ItemEatMin && itemDX <= ItemApproachMax
 	itemReady := itemTarget && itemDX <= ItemEatMax
+	itemStop := itemTarget && itemDX <= ItemStopMax
 
 	need := "NONE"
-	lockMoveToGo := itemTarget
 	switch {
 	case !g.Grounded:
 		need = "NONE"
 	case bulletNear && !pitUrgent:
 		need = "CROUCH"
-	case pitNear || enemyStomp || (boxReady && !bulletNear && !enemyTooClose):
+	case pitNear || enemyStomp || enemyTooClose || (boxReady && !bulletNear):
 		need = "JUMP"
 	case itemReady:
 		need = "CROUCH"
 	}
 	goDir := "RIGHT"
-	if enemyTooClose {
-		goDir = "LEFT"
+	if enemyTooClose || itemStop {
+		goDir = "IDLE"
 	}
+	lockMoveToGo := itemTarget || enemyTooClose
 
 	parts := []string{
 		"need=" + need,
