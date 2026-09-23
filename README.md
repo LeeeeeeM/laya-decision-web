@@ -6,7 +6,7 @@
 
 横卷游戏判定演示（agent 模式）：
 
-[播放横卷游戏判定演示（platform-demo.mov）](docs/assets/platform-demo.mov)
+https://github.com/user-attachments/assets/6ed4108b-add3-47a7-8853-e632ac6aac1d
 
 设计文档见 [`docs/`](docs/)。
 
