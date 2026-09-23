@@ -1,0 +1,36 @@
+# Secrets and local env
+.env
+.env.local
+*.pem
+
+# Model weights and Core ML caches
+models/
+*.mlpackage/
+.cache/
+laya-model-cache/
+*.mlmodelc/
+models/**/model.mlmodelc/
+
+# Go
+bin/
+dist-server/
+*.exe
+*.test
+coverage.out
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Recordings / temp
+recordings/
+tmp/
+third_party/tokenizers/*.tar.gz
+third_party/tokenizers/*.tgz
+

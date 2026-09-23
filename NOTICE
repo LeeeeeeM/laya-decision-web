@@ -1,0 +1,9 @@
+Laya Decision Web
+Copyright contributors
+
+This product includes software developed from / adapted from:
+  laya-coreml (https://github.com/LeeeeeeM/laya-coreml) — Apache-2.0
+  including Snake rules, safety-layer policy semantics, and Laya typed-decision flows.
+
+Model weights under models/ retain their upstream LICENSE / NOTICE from the
+Hugging Face Core ML package (see models/snake/LICENSE and models/snake/NOTICE).
