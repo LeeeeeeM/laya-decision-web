@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/LeeeeeeM/laya-decision-web/internal/decision"
@@ -85,19 +86,30 @@ func (p *Policy) Decide(ctx context.Context, cues DecisionCues) (DecisionResult,
 	if err != nil {
 		return DecisionResult{}, err
 	}
+	if err := decision.ValidateResponse(req, resp); err != nil {
+		return DecisionResult{}, err
+	}
 
-	proposedMove, moveProbs := pickChoice(resp.Answers, "move", moveTarget)
+	proposedMove, moveProbs, err := pickChoice(resp.Answers, "move")
+	if err != nil {
+		return DecisionResult{}, err
+	}
 	executedMove := proposedMove
-	proposedAction, actionProbs := pickChoice(resp.Answers, "action", cues.Need)
+	proposedAction, actionProbs, err := pickChoice(resp.Answers, "action")
+	if err != nil {
+		return DecisionResult{}, err
+	}
 	executedAction := proposedAction
 	intervened := false
 	if !containsChoice(moveOptions, executedMove) {
-		executedMove = moveTarget
-		intervened = true
+		return DecisionResult{}, fmt.Errorf("provider returned unsupported move %q", executedMove)
 	}
 	if cues.LockMoveToGo && executedMove != moveTarget {
 		executedMove = moveTarget
 		intervened = true
+	}
+	if !containsChoice([]string{"NONE", "JUMP", "CROUCH"}, proposedAction) {
+		return DecisionResult{}, fmt.Errorf("provider returned unsupported action %q", proposedAction)
 	}
 	if cues.Need != "" && cues.Need != "NONE" && proposedAction != cues.Need {
 		executedAction = cues.Need
@@ -162,29 +174,23 @@ func marshalOrderedObject(order []string, values map[string]string) (json.RawMes
 	return buf.Bytes(), nil
 }
 
-func pickChoice(answers map[string]json.RawMessage, key, fallback string) (string, map[string]float64) {
+func pickChoice(answers map[string]json.RawMessage, key string) (string, map[string]float64, error) {
 	raw, ok := answers[key]
 	if !ok {
-		return fallback, map[string]float64{fallback: 1}
+		return "", nil, fmt.Errorf("provider response omitted %s answer", key)
 	}
 	var obj struct {
 		Choice        string             `json:"choice"`
 		Probabilities map[string]float64 `json:"probabilities"`
 	}
-	if err := json.Unmarshal(raw, &obj); err != nil || obj.Choice == "" {
-		if len(obj.Probabilities) > 0 {
-			best, bestP := fallback, -1.0
-			for k, p := range obj.Probabilities {
-				if p > bestP {
-					best, bestP = k, p
-				}
-			}
-			return best, obj.Probabilities
-		}
-		return fallback, map[string]float64{fallback: 1}
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return "", nil, fmt.Errorf("invalid %s answer: %w", key, err)
 	}
-	if obj.Probabilities == nil {
-		obj.Probabilities = map[string]float64{obj.Choice: 1}
+	if obj.Choice == "" {
+		return "", nil, fmt.Errorf("provider response omitted %s choice", key)
 	}
-	return obj.Choice, obj.Probabilities
+	if len(obj.Probabilities) == 0 {
+		return "", nil, fmt.Errorf("provider response omitted %s probabilities", key)
+	}
+	return obj.Choice, obj.Probabilities, nil
 }

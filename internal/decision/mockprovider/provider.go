@@ -30,8 +30,10 @@ func (p *Provider) Decide(ctx context.Context, req decision.Request) (decision.R
 		switch q.Type {
 		case decision.TypeChoice:
 			probs := heuristicChoice(q.CriteriaMap)
+			choice := maxChoice(probs)
 			raw, _ = json.Marshal(map[string]any{
 				"type":          "choice",
+				"choice":        choice,
 				"probabilities": probs,
 				"confidence":    maxProb(probs),
 			})
@@ -121,4 +123,16 @@ func maxProb(m map[string]float64) float64 {
 		}
 	}
 	return max
+}
+
+func maxChoice(m map[string]float64) string {
+	choice := ""
+	best := -1.0
+	for key, value := range m {
+		if choice == "" || value > best {
+			choice = key
+			best = value
+		}
+	}
+	return choice
 }

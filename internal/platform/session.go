@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -36,11 +37,11 @@ type CreateRequest struct {
 }
 
 type ControlRequest struct {
-	Action string  `json:"action"` // pause|resume|reset|stop|input
-	Seed   *int64  `json:"seed,omitempty"`
-	Move   string  `json:"move,omitempty"`
-	Stance string  `json:"stance,omitempty"` // NONE|JUMP|CROUCH when action=input
-	Keys   *Keys   `json:"keys,omitempty"`
+	Action string `json:"action"` // pause|resume|reset|stop|input
+	Seed   *int64 `json:"seed,omitempty"`
+	Move   string `json:"move,omitempty"`
+	Stance string `json:"stance,omitempty"` // NONE|JUMP|CROUCH when action=input
+	Keys   *Keys  `json:"keys,omitempty"`
 }
 
 type Keys struct {
@@ -60,6 +61,16 @@ type SessionSnapshot struct {
 	Game       Snapshot `json:"game"`
 }
 
+type decisionResult struct {
+	generation uint64
+	tick       int64
+	decision   DecisionResult
+}
+
+type retryAfterer interface {
+	GetRetryAfter() time.Duration
+}
+
 type Session struct {
 	ID         string
 	Provider   decision.Provider
@@ -67,19 +78,21 @@ type Session struct {
 	DecisionHz float64
 	Mode       string
 
-	mu            sync.Mutex
-	game          *Game
-	status        Status
-	seed          int64
-	lastDecision  *DecisionResult
-	cooldownUntil time.Time
-	lastError     string
-	eventSeq      int64
-	events        []Event
-	subs          map[chan Event]struct{}
-	cancel        context.CancelFunc
-	stopped       bool
-	keys          Keys
+	mu             sync.Mutex
+	game           *Game
+	status         Status
+	seed           int64
+	lastDecision   *DecisionResult
+	cooldownUntil  time.Time
+	lastError      string
+	eventSeq       int64
+	events         []Event
+	subs           map[chan Event]struct{}
+	cancel         context.CancelFunc
+	stopped        bool
+	keys           Keys
+	generation     uint64
+	latestDecision *decisionResult
 }
 
 type Manager struct {
@@ -196,9 +209,11 @@ func (s *Session) Control(req ControlRequest) (SessionSnapshot, error) {
 	switch req.Action {
 	case "pause":
 		s.status = StatusPaused
+		s.latestDecision = nil
 	case "resume":
 		s.status = StatusRunning
 		s.cooldownUntil = time.Time{}
+		s.latestDecision = nil
 	case "reset":
 		seed := s.seed
 		if req.Seed != nil {
@@ -208,9 +223,13 @@ func (s *Session) Control(req ControlRequest) (SessionSnapshot, error) {
 		s.seed = seed
 		s.status = StatusRunning
 		s.lastDecision = nil
+		s.latestDecision = nil
+		s.generation++
 	case "stop":
 		s.status = StatusStopped
 		s.stopped = true
+		s.generation++
+		s.latestDecision = nil
 		if s.cancel != nil {
 			s.cancel()
 		}
@@ -315,13 +334,12 @@ func (s *Session) emitLocked(typ string, data any) {
 }
 
 func (s *Session) loop(ctx context.Context) {
+	if s.Mode == "agent" {
+		go s.decisionLoop(ctx)
+	}
+
 	physTicker := time.NewTicker(time.Second / PhysicsHz)
 	defer physTicker.Stop()
-	decEvery := time.Duration(float64(time.Second) / s.DecisionHz)
-	if decEvery <= 0 {
-		decEvery = time.Second / 8
-	}
-	nextDec := time.Now()
 
 	for {
 		select {
@@ -337,7 +355,6 @@ func (s *Session) loop(ctx context.Context) {
 		}
 		status := s.status
 		alive := s.game.Alive
-		mode := s.Mode
 		s.mu.Unlock()
 
 		if status == StatusFinished || !alive {
@@ -350,41 +367,27 @@ func (s *Session) loop(ctx context.Context) {
 			s.mu.Unlock()
 			continue
 		}
-		if status == StatusPaused || status == StatusError || status == StatusCooldown {
+		if status == StatusCooldown {
+			s.mu.Lock()
+			if time.Now().Before(s.cooldownUntil) {
+				s.mu.Unlock()
+				continue
+			}
+			s.status = StatusRunning
+			s.lastError = ""
+			s.emitLocked("status", map[string]any{"status": s.status})
+			s.mu.Unlock()
+			status = StatusRunning
+		}
+		if status == StatusPaused || status == StatusError {
 			continue
 		}
 
-		// agent decision at decision_hz — infer without holding mu (like Snake).
-		if mode == "agent" && time.Now().After(nextDec) {
-			nextDec = time.Now().Add(decEvery)
-			s.mu.Lock()
-			cues := s.game.DecisionCues()
-			pol := &Policy{Provider: s.Provider}
-			s.mu.Unlock()
-
-			dctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-			dec, err := pol.Decide(dctx, cues)
-			cancel()
-
-			s.mu.Lock()
-			if s.status == StatusRunning && !s.stopped && s.game.Alive {
-				if err != nil {
-					s.status = StatusError
-					s.lastError = err.Error()
-					s.emitLocked("status", map[string]any{"status": s.status, "error": s.lastError})
-				} else {
-					s.game.SetIntent(MoveIntent(dec.Move), ActionIntent(dec.Action))
-					s.lastDecision = &dec
-					s.emitLocked("decision", dec)
-				}
-			}
-			s.mu.Unlock()
-		}
-
 		s.mu.Lock()
-		if mode == "human" {
+		if s.Mode == "human" {
 			s.applyKeysLocked()
 		}
+		s.applyLatestDecisionLocked()
 		s.game.Step()
 		// emit snapshot every 3 physics frames (~20Hz)
 		if s.game.Ticks%3 == 0 {
@@ -397,4 +400,116 @@ func (s *Session) loop(ctx context.Context) {
 		}
 		s.mu.Unlock()
 	}
+}
+
+// decisionLoop samples the game at decision_hz and runs exactly one provider
+// request at a time. Provider latency never blocks the physics loop; the
+// physics loop keeps consuming the last applied intent until a fresh result is
+// available.
+func (s *Session) decisionLoop(ctx context.Context) {
+	interval := time.Duration(float64(time.Second) / s.DecisionHz)
+	if interval <= 0 {
+		interval = time.Second / 8
+	}
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+
+		s.mu.Lock()
+		if s.stopped {
+			s.mu.Unlock()
+			return
+		}
+		if s.status != StatusRunning || !s.game.Alive {
+			s.mu.Unlock()
+			timer.Reset(interval)
+			continue
+		}
+		generation := s.generation
+		tick := s.game.Ticks
+		cues := s.game.DecisionCues()
+		provider := s.Provider
+		s.mu.Unlock()
+
+		policy := &Policy{Provider: provider}
+		dctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		dec, err := policy.Decide(dctx, cues)
+		cancel()
+
+		s.mu.Lock()
+		valid := !s.stopped && s.status == StatusRunning && s.game.Alive && s.generation == generation
+		if valid {
+			if err != nil {
+				s.handleDecisionErrorLocked(err)
+			} else {
+				s.latestDecision = &decisionResult{
+					generation: generation,
+					tick:       tick,
+					decision:   dec,
+				}
+			}
+		}
+		s.mu.Unlock()
+
+		timer.Reset(interval)
+	}
+}
+
+func (s *Session) applyLatestDecisionLocked() {
+	result := s.latestDecision
+	if result == nil {
+		return
+	}
+	s.latestDecision = nil
+	if result.generation != s.generation || s.status != StatusRunning || !s.game.Alive {
+		return
+	}
+	if s.game.Ticks-result.tick > maxDecisionLagTicks(s.DecisionHz) {
+		return
+	}
+	s.game.SetIntent(MoveIntent(result.decision.Move), ActionIntent(result.decision.Action))
+	s.lastDecision = &result.decision
+	s.emitLocked("decision", result.decision)
+}
+
+func maxDecisionLagTicks(hz float64) int64 {
+	if hz <= 0 {
+		hz = DefaultDHz
+	}
+	lag := int64(math.Ceil(float64(PhysicsHz) * 2 / hz))
+	if lag < 1 {
+		return 1
+	}
+	return lag
+}
+
+func (s *Session) handleDecisionErrorLocked(err error) {
+	s.lastError = err.Error()
+	if retry, ok := err.(retryAfterer); ok && retry.GetRetryAfter() > 0 {
+		d := retry.GetRetryAfter()
+		s.status = StatusCooldown
+		s.cooldownUntil = time.Now().Add(d)
+		s.emitLocked("error", map[string]any{
+			"code":                "provider_rate_limited",
+			"message":             s.lastError,
+			"retry_after_seconds": d.Seconds(),
+		})
+		s.emitLocked("status", map[string]any{
+			"status":              s.status,
+			"retry_after_seconds": d.Seconds(),
+		})
+		return
+	}
+	s.status = StatusError
+	s.emitLocked("error", map[string]any{
+		"code":    "provider_error",
+		"message": s.lastError,
+	})
+	s.emitLocked("status", map[string]any{"status": s.status})
 }

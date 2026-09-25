@@ -71,6 +71,9 @@ func (p *Policy) Decide(ctx context.Context, game *Game) (DecisionResult, error)
 	if err != nil {
 		return DecisionResult{}, err
 	}
+	if err := decision.ValidateResponse(req, resp); err != nil {
+		return DecisionResult{}, err
+	}
 
 	probs, risk, food, err := parseAnswers(resp.Answers)
 	if err != nil {

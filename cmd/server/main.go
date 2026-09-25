@@ -85,6 +85,7 @@ func loadLaya(cfg config.Config) decision.Provider {
 		ModelDir:     dir,
 		ModelID:      firstNonEmpty(cfg.LayaModelID, filepath.Base(dir)),
 		ComputeUnits: coreml.UnitsCPUNE,
+		LogIO:        cfg.LayaLogIO,
 	})
 	if err != nil {
 		log.Printf("laya load failed: %v", err)

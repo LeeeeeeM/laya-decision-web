@@ -114,6 +114,10 @@ func (s *Server) handleDecisions(w http.ResponseWriter, r *http.Request) {
 		mapProviderError(w, err)
 		return
 	}
+	if err := decision.ValidateResponse(req, resp); err != nil {
+		mapProviderError(w, err)
+		return
+	}
 	resp.Timing.RequestMS = float64(time.Since(start).Microseconds()) / 1000
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -254,6 +258,7 @@ func mapProviderError(w http.ResponseWriter, err error) {
 	var rate *jev.RateLimitedError
 	var auth *jev.AuthError
 	var unavail *jev.UnavailableError
+	var invalidResponse *decision.InvalidResponseError
 	switch {
 	case errors.As(err, &rate):
 		writeError(w, http.StatusTooManyRequests, "provider_rate_limited", rate.Error(), rate.RetryAfter.Seconds())
@@ -261,6 +266,8 @@ func mapProviderError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadGateway, "provider_auth_failed", auth.Error(), 0)
 	case errors.As(err, &unavail):
 		writeError(w, http.StatusServiceUnavailable, "provider_unavailable", unavail.Error(), 0)
+	case errors.As(err, &invalidResponse):
+		writeError(w, http.StatusBadGateway, "provider_invalid_response", invalidResponse.Error(), 0)
 	case errors.Is(err, context.DeadlineExceeded):
 		writeError(w, http.StatusGatewayTimeout, "provider_timeout", "provider call timed out", 0)
 	default:

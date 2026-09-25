@@ -21,6 +21,7 @@ type Config struct {
 	LayaModelID     string
 	LayaModelDir    string
 	LayaModelRev    string
+	LayaLogIO       bool
 	HFToken         string
 	AllowMock       bool
 }
@@ -37,6 +38,7 @@ func Load() (Config, error) {
 		LayaModelID:     os.Getenv("LAYA_MODEL_ID"),
 		LayaModelDir:    envOr("LAYA_MODEL_DIR", "models/snake"),
 		LayaModelRev:    os.Getenv("LAYA_MODEL_REVISION"),
+		LayaLogIO:       envBool("LAYA_LOG_IO", false),
 		HFToken:         os.Getenv("HF_TOKEN"),
 		AllowMock:       envBool("ALLOW_MOCK_PROVIDER", true),
 	}

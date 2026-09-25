@@ -220,6 +220,7 @@ action 支持 pause、resume、set_speed（同时传 fps）、reset（seed 可�
 |---|---|---|
 | 400 | invalid_request | JSON、question schema 或参数错误 |
 | 502 | provider_auth_failed | 上游拒绝服务端配置的 Jev key |
+| 502 | provider_invalid_response | provider 返回的 typed answers 不符合契约 |
 | 404 | session_not_found / model_not_found | session 或已登记模型不存在 |
 | 413 | request_too_large | 请求体过大 |
 | 422 | model_input_invalid | 类型、候选数或 token budget 不符合要求 |
@@ -236,6 +237,6 @@ Jev 返回 429 / 503 / 529 时，后端遵循 Retry-After 并限制重试次数�
 - 验证概率为有限数且位于 [0, 1]；choice 概率和做浮点误差容忍检查。
 - 安全层在服务端验证动作合法、安全。
 - 日志记录 request ID、provider、model、HTTP 状态和耗时；state 可配置不记录或只记摘要。
+- Laya 调试输入输出日志默认关闭；仅在明确设置 `LAYA_LOG_IO=true` 时记录 state、tokenized input 和 typed output。
 - 日志、响应和错误信息永不包含 Authorization、BOCHA_JEV_API_KEY 或 HF_TOKEN。
 - 默认只绑定 loopback；Origin 限定为 Go 页面或本机 Vite dev origin。不提供任意 URL 代理。
-

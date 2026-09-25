@@ -230,7 +230,7 @@ func (p *forcedProvider) Decide(ctx context.Context, req decision.Request) (deci
 	_ = req
 	probs := map[string]float64{"UP": 0.01, "DOWN": 0.01, "LEFT": 0.01, "RIGHT": 0.01}
 	probs[p.dir] = 0.97
-	move, _ := json.Marshal(map[string]any{"type": "choice", "probabilities": probs, "confidence": 0.97})
+	move, _ := json.Marshal(map[string]any{"type": "choice", "choice": p.dir, "probabilities": probs, "confidence": 0.97})
 	risk, _ := json.Marshal(map[string]any{"type": "noul", "noul": 0.9, "confidence": 0.9})
 	food, _ := json.Marshal(map[string]any{"type": "noul", "noul": 0.8, "confidence": 0.8})
 	return decision.Response{

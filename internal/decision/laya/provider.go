@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -22,12 +23,16 @@ type Provider struct {
 	tok      *Tokenizer
 	ane      *aneRuntime
 	ready    bool
+	logIO    bool
+	logger   *log.Logger
 }
 
 type Options struct {
 	ModelDir     string
 	ModelID      string
 	ComputeUnits int // coreml.Units*
+	LogIO        bool
+	Logger       *log.Logger
 }
 
 func Open(opts Options) (*Provider, error) {
@@ -49,10 +54,14 @@ func Open(opts Options) (*Provider, error) {
 	if manifest.Format != "laya-coreml-ane" || manifest.FormatVersion != 1 {
 		return nil, fmt.Errorf("unsupported model format %s v%d (ANE package required for this path)", manifest.Format, manifest.FormatVersion)
 	}
+	logger := opts.Logger
+	if logger == nil {
+		logger = log.Default()
+	}
 	if runtime.GOOS != "darwin" {
 		return &Provider{
 			dir: abs, modelID: firstNonEmpty(opts.ModelID, manifest.Repository, filepath.Base(abs)),
-			manifest: manifest, ready: false,
+			manifest: manifest, ready: false, logIO: opts.LogIO, logger: logger,
 		}, nil
 	}
 	cfg, err := loadAgentConfig(abs)
@@ -75,6 +84,7 @@ func Open(opts Options) (*Provider, error) {
 	id := firstNonEmpty(opts.ModelID, manifest.Repository, filepath.Base(abs))
 	return &Provider{
 		dir: abs, modelID: id, manifest: manifest, cfg: cfg, tok: tok, ane: ane, ready: true,
+		logIO: opts.LogIO, logger: logger,
 	}, nil
 }
 
@@ -104,8 +114,14 @@ func (p *Provider) ModelInfo() decision.ModelInfo {
 	}
 }
 
-func (p *Provider) Decide(ctx context.Context, req decision.Request) (decision.Response, error) {
+func (p *Provider) Decide(ctx context.Context, req decision.Request) (resp decision.Response, err error) {
 	_ = ctx
+	started := time.Now()
+	p.logDecisionInput(req)
+	defer func() {
+		p.logDecisionOutput(resp, err, time.Since(started))
+	}()
+
 	if !p.Available() {
 		return decision.Response{}, fmt.Errorf("laya provider unavailable")
 	}
@@ -133,6 +149,7 @@ func (p *Provider) Decide(ctx context.Context, req decision.Request) (decision.R
 	if err != nil {
 		return decision.Response{}, err
 	}
+	p.logPreparedInput(items, maxLen, p.cfg.HeadMaxLen)
 	answers := map[string]json.RawMessage{}
 	inputTokens := 0
 	for _, item := range items {
@@ -141,10 +158,12 @@ func (p *Provider) Decide(ctx context.Context, req decision.Request) (decision.R
 		if err != nil {
 			return decision.Response{}, err
 		}
+		p.logModelInput(item.Key, batch)
 		logits, act, err := p.ane.forward(batch)
 		if err != nil {
 			return decision.Response{}, err
 		}
+		p.logModelOutput(item.Key, logits, act)
 		for _, v := range logits {
 			if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
 				return decision.Response{}, fmt.Errorf("non-finite Core ML outputs")
@@ -217,6 +236,104 @@ func (p *Provider) Decide(ctx context.Context, req decision.Request) (decision.R
 		Usage:    decision.Usage{InputTokens: inputTokens},
 		Timing:   decision.Timing{ProviderMS: float64(time.Since(start).Microseconds()) / 1000},
 	}, nil
+}
+
+func (p *Provider) logDecisionInput(req decision.Request) {
+	if p == nil || !p.logIO || p.logger == nil {
+		return
+	}
+	p.logJSON("input", map[string]any{
+		"provider":  req.Provider,
+		"model":     req.Model,
+		"state":     logJSONValue(req.State),
+		"questions": req.Questions,
+	})
+}
+
+func (p *Provider) logPreparedInput(items []preparedItem, maxLen, headMaxLen int) {
+	if p == nil || !p.logIO || p.logger == nil {
+		return
+	}
+	prepared := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		prepared = append(prepared, map[string]any{
+			"key":     item.Key,
+			"type":    item.Q.Type,
+			"ids":     item.IDs,
+			"markers": item.Markers,
+		})
+	}
+	p.logJSON("prepared_input", map[string]any{
+		"max_len":      maxLen,
+		"head_max_len": headMaxLen,
+		"items":        prepared,
+	})
+}
+
+func (p *Provider) logModelInput(key string, batch batchTensors) {
+	if p == nil || !p.logIO || p.logger == nil {
+		return
+	}
+	p.logJSON("model_input", map[string]any{
+		"key":              key,
+		"batch_size":       batch.BatchSize,
+		"length":           batch.Length,
+		"max_options":      batch.MaxOptions,
+		"input_ids":        batch.InputIDs,
+		"attention_mask":   batch.AttentionMask,
+		"marker_positions": batch.MarkerPos,
+		"marker_mask":      batch.MarkerMask,
+		"question_type":    batch.QType,
+	})
+}
+
+func (p *Provider) logModelOutput(key string, logits, action []float32) {
+	if p == nil || !p.logIO || p.logger == nil {
+		return
+	}
+	p.logJSON("model_output", map[string]any{
+		"key":    key,
+		"logits": logits,
+		"action": action,
+	})
+}
+
+func (p *Provider) logDecisionOutput(resp decision.Response, err error, elapsed time.Duration) {
+	if p == nil || !p.logIO || p.logger == nil {
+		return
+	}
+	payload := map[string]any{
+		"provider":   resp.Provider,
+		"model":      resp.Model,
+		"answers":    resp.Answers,
+		"usage":      resp.Usage,
+		"timing":     resp.Timing,
+		"elapsed_ms": float64(elapsed.Microseconds()) / 1000,
+	}
+	if err != nil {
+		payload["error"] = err.Error()
+	}
+	p.logJSON("output", payload)
+}
+
+func (p *Provider) logJSON(event string, value any) {
+	b, err := json.Marshal(value)
+	if err != nil {
+		p.logger.Printf("laya %s: log encoding failed: %v", event, err)
+		return
+	}
+	p.logger.Printf("laya %s: %s", event, b)
+}
+
+func logJSONValue(raw json.RawMessage) any {
+	if len(raw) == 0 {
+		return nil
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err == nil {
+		return value
+	}
+	return string(raw)
 }
 
 func softmax64(z []float64) []float64 {
